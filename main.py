@@ -1,10 +1,10 @@
 import asyncio
 from email.mime import application
 import logging
-from telegram import Chat, Update
+from telegram import Chat, Update, Poll, KeyboardButtonPollType
 import os
 from dotenv import load_dotenv
-from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters
+from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters, PollAnswerHandler, PollHandler
 import re
 
 #TODO Prevent bots from sending messages by checking update effetive user is_bot
@@ -51,6 +51,21 @@ async def ask_q(update:Update, context: ContextTypes.DEFAULT_TYPE):
     #TODO Create Q in DB with ID and User ID and Chat ID
     await context.bot.send_message(chat_id=GROUP_ID, text=(' '.join(context.args) + "\n\nID:1337"))
 
+async def create_poll(update:Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    if chat_id == int(GROUP_ID):
+        return
+
+    poll = update.effective_message.poll
+    
+    await context.bot.send_poll(
+        chat_id=GROUP_ID,
+        question=poll.question, 
+        options=[i.text for i in poll.options],
+        is_anonymous=poll.is_anonymous,
+        allows_multiple_answers=poll.allows_multiple_answers
+        )
+
 async def answer_q(update:Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     if chat_id == int(GROUP_ID):
@@ -61,6 +76,8 @@ async def answer_q(update:Update, context: ContextTypes.DEFAULT_TYPE):
     #TODO Send Answer to user who asked Q 
     #TODO Set if answer is open or private
     await context.bot.send_message(chat_id=chat_id, text="HELPTEXT")
+
+
     
 #HELPERS
 async def user_auth(chat_id, user_id, context):
@@ -83,6 +100,7 @@ async def user_auth_pw(chat_id, context, password):
         await context.bot.send_message(chat_id=chat_id, text="Wrong password, pls try again")
         #TODO pw try count up
         return False
+
         
     
 #TODO Message Handler with filters to REPLY -> Grab ID and forward answers to initial chat
@@ -94,6 +112,7 @@ if __name__ == "__main__":
     handlers.append(CommandHandler('help', help_cmd))
     handlers.append(CommandHandler('password', pw_auth))
     handlers.append(CommandHandler('q', ask_q))
+    handlers.append(MessageHandler(filters.POLL, create_poll))
     
     application.add_handlers(handlers=handlers)
     
