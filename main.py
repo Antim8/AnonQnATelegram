@@ -1,6 +1,8 @@
 import asyncio
+from email import message
 from email.mime import application
 import logging
+from httpx import delete
 from telegram import Chat, Update, Poll, KeyboardButtonPollType
 import os
 from dotenv import load_dotenv
@@ -9,9 +11,15 @@ from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, Messa
 import re
 import math 
 
+
 import sqlite3 as sl
 
 #TODO Prevent bots from sending messages by checking update effetive user is_bot
+#TODO Evtl. Emojis oder ahnliches hinzufuegen um die IDs besser unterscheiden zu koennen 
+#TODO Poll
+#TODO teilweise inkosistent da manchmal die telegram_id abgespeichert wird und andernmal die DB-ID 
+#TODO help_cmd HelpText schreiben
+#TODO Testing 
 
 load_dotenv()
 TOKEN = os.environ.get('TELEGRAM_API_KEY')
@@ -62,7 +70,6 @@ async def ask_q(update:Update, context: ContextTypes.DEFAULT_TYPE):
         await context.bot.send_message(chat_id=chat_id, text="You are banned until " + banned_until + '!')
         return
     
-    
     cur.execute("SELECT id FROM USER WHERE telegram_id=?", (update.effective_user.id,))
     user_id = cur.fetchone()[0]
 
@@ -70,7 +77,12 @@ async def ask_q(update:Update, context: ContextTypes.DEFAULT_TYPE):
         "INSERT INTO QUESTIONS (user_id, q_text) VALUES (?,?)", (user_id, ' '.join(context.args))
         )
     id = cur.lastrowid
-    await context.bot.send_message(chat_id=GROUP_ID, text=(' '.join(context.args) + "\n\nID: " + str(id)))
+    message = await context.bot.send_message(chat_id=GROUP_ID, text=(' '.join(context.args) + "\n\nID: " + str(id)))
+    
+    cur.execute("UPDATE QUESTIONS SET message_id=? WHERE id=?", (message.message_id, id))
+
+    
+
 
 async def create_poll(update:Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
@@ -99,6 +111,8 @@ async def answer_q_command(update:Update, context: ContextTypes.DEFAULT_TYPE):
         return
     permitted, banned_until = await check_status(chat_id=chat_id, user_id=update.effective_user.id, context=context)
     if not permitted:
+        if banned_until == 0:
+            return 
         await context.bot.send_message(chat_id=chat_id, text="You are banned until " + banned_until + '!')
         return
     
@@ -174,21 +188,28 @@ async def answer_q_group_command(update:Update, context: ContextTypes.DEFAULT_TY
         )   
     id = cur.lastrowid
 
-    await context.bot.send_message(chat_id=int(GROUP_ID), text="ID: " + a_text + "\n\nID: " + str(id))
+    message = await context.bot.send_message(chat_id=int(GROUP_ID), text="ID: " + a_text + "\n\nID: " + str(id))
+
+    cur.execute("UPDATE ANSWERS SET message_id=? WHERE id=?", (message.message_id, id))
+
 
 
 async def report_question(update:Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
 
+    # TODO Here Reporter_ID is the telegram chat ID and reported_user_id is the id by the database 
+
     if not context.args[0].isnumeric():
         await context.bot.send_message(chat_id=chat_id, text="Enter the ID-Number first, followed by your reason!")
         return
 
-    
-
     reporter_id = update.effective_user.id
     cur.execute("SELECT user_id FROM QUESTIONS WHERE id=?", (context.args[0],))
-    reported_user_id = cur.fetchone()[0]
+    entry = cur.fetchone()
+    if entry == None:
+        await context.bot.send_message(chat_id=chat_id, text="It seems that the ID-Number is incorrect. Try again!")
+        return 
+    reported_user_id = entry[0]
 
     cur.execute("SELECT 1 FROM REPORTS WHERE reporter_id=? AND reported_q_id=?", (reporter_id, int(context.args[0])))
     permitted = cur.fetchone()
@@ -196,14 +217,19 @@ async def report_question(update:Update, context: ContextTypes.DEFAULT_TYPE):
         await context.bot.send_message(chat_id=chat_id, text="You already reported the question!")
         return 
 
+    if len(context.args) < 2:
+        await context.bot.send_message(chat_id=chat_id, text="Please give a reason after the ID-Number!")
+        return 
+
     # increase num_reported of the question
     cur.execute(
         "UPDATE QUESTIONS SET num_reported = num_reported + 1 WHERE id=?", 
         (context.args[0],)
         )  
+    
     cur.execute(
         "INSERT INTO  REPORTS (reporter_id, reported_user_id, reported_q_id, why) VALUES (?,?,?,?)", 
-        (reporter_id, reported_user_id, int(context.args[0]), ' '.join(context.args[1:]))
+        (reporter_id, reported_user_id, context.args[0], ' '.join(context.args[1:]))
         )   
 
     num_group_members = await context.bot.get_chat_member_count(chat_id=int(GROUP_ID))
@@ -211,11 +237,28 @@ async def report_question(update:Update, context: ContextTypes.DEFAULT_TYPE):
     cur.execute("SELECT COUNT(reported_q_id) FROM REPORTS WHERE reported_q_id=?", (context.args[0],))
     num_reports = cur.fetchone()[0]
 
-    if required_reports_to_ban < num_reports:
+    if required_reports_to_ban <= num_reports:
+
+        cur.execute("SELECT banned FROM QUESTIONS WHERE id=?", (context.args[0],))
+        banned = cur.fetchone()[0]
+    
+        if banned:
+            await context.bot.send_message(chat_id=chat_id, text="The respective account is banned.")
+            return 
+
+        cur.execute("SELECT message_id FROM QUESTIONS WHERE id=?", (context.args[0],))
+        message_id = cur.fetchone()[0]
+        await context.bot.delete_message(chat_id=GROUP_ID, message_id=message_id)
+        
+        cur.execute("UPDATE QUESTIONS SET banned=1 WHERE id=?", (context.args[0],)) 
+
         cur.execute(
         "UPDATE USER SET banned_until = DATE('now', '+3 day') WHERE id=?", 
         (reported_user_id,)
         )  
+        cur.execute("SELECT telegram_id FROM USER WHERE id=?", (reported_user_id,))
+        telegram_id = cur.fetchone()[0]
+        await context.bot.send_message(chat_id=telegram_id, text="Your Question with the ID: " + context.args[0] +  " received mutiple reports! You are banned for three days.")
     
         
 async def report_answer(update:Update, context: ContextTypes.DEFAULT_TYPE):
@@ -227,14 +270,22 @@ async def report_answer(update:Update, context: ContextTypes.DEFAULT_TYPE):
 
     reporter_id = update.effective_user.id
     cur.execute("SELECT user_id FROM ANSWERS WHERE id=?", (context.args[0],))
-    reported_user_id = cur.fetchone()[0]
+    entry = cur.fetchone()
+    if entry == None:
+        await context.bot.send_message(chat_id=chat_id, text="It seems that the ID-Number is incorrect. Try again!")
+        return 
+    reported_user_id = entry[0]
 
     cur.execute("SELECT 1 FROM REPORTS WHERE reporter_id=? AND reported_a_id=?", (reporter_id, int(context.args[0])))
     permitted = cur.fetchone()
-    if permitted is not None:
-        await context.bot.send_message(chat_id=chat_id, text="You already reported the answer!")
-        return 
+    #if permitted is not None:
+    #    await context.bot.send_message(chat_id=chat_id, text="You already reported the answer!")
+    #    return 
 
+    if len(context.args) < 2:
+        await context.bot.send_message(chat_id=chat_id, text="Please give a reason after the ID-Number!")
+        return 
+    
     # increase num_reported of the answer
     cur.execute(
         "UPDATE ANSWERS SET num_reported = num_reported + 1 WHERE id=?", 
@@ -248,14 +299,34 @@ async def report_answer(update:Update, context: ContextTypes.DEFAULT_TYPE):
 
     num_group_members = await context.bot.get_chat_member_count(chat_id=int(GROUP_ID))
     required_reports_to_ban = math.isqrt(num_group_members)
-    cur.execute("SELECT COUNT(reported_q_id) FROM REPORTS WHERE reported_q_id=?", (context.args[0],))
+    cur.execute("SELECT COUNT(reported_q_id) FROM REPORTS WHERE reported_a_id=?", (context.args[0],))
     num_reports = cur.fetchone()[0]
 
-    if required_reports_to_ban < num_reports:
+    if required_reports_to_ban <= num_reports:
+
+        cur.execute("SELECT banned FROM ANSWERS WHERE id=?", (context.args[0],))
+        banned = cur.fetchone()[0]
+        if banned:
+            await context.bot.send_message(chat_id=chat_id, text="The respective account is banned.")
+            return
+        
+        cur.execute("SELECT message_id FROM ANSWERS WHERE id=?", (context.args[0],))
+        message_id = cur.fetchone()[0]
+        await context.bot.delete_message(chat_id=GROUP_ID, message_id=message_id)
+        
+        
+        cur.execute("UPDATE QUESTIONS SET banned=1 WHERE id=?", (context.args[0],)) 
+
+        cur.execute("SELECT id FROM USER WHERE telegram_id=?", (reported_user_id,))
+        id = cur.fetchone()[0]
+
         cur.execute(
-        "UPDATE USER SET banned_until = DATE_ADD(now(), INTERVAL 10 DAY) WHERE id=?", 
-        (reported_user_id,)
+        "UPDATE USER SET banned_until = DATE('now', '+3 day') WHERE id=?", 
+        (id,)
         )  
+        
+        await context.bot.send_message(chat_id=reported_user_id, text="Your Answer with the ID: " + context.args[0] +  " received mutiple reports! You are banned for three days.")
+
 
 #HELPERS
 async def user_auth(chat_id, user_id, context):
@@ -316,12 +387,19 @@ async def check_status(chat_id, user_id, context):
     else:
         user_id = user_id[0]
     
+    if len(context.args) == 0:
+        await context.bot.send_message(chat_id=chat_id, text="You have to specify an ID, followed by the respective content.")
+        return False, 0
+
+    
     cur.execute("SELECT banned_until from USER WHERE id=?", (user_id,))
     banned_until = cur.fetchone()[0]
     if banned_until == None:
         return True, 0
     else:
         return False, banned_until
+    
+    
 
 
 
