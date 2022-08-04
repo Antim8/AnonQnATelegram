@@ -131,3 +131,4 @@ dmypy.json
 .notes.md
 test_tut.py
 *.db
+.DS_Store
