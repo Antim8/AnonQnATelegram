@@ -6,8 +6,11 @@ from dotenv import load_dotenv
 from telegram.ext import ContextTypes, filters, PollAnswerHandler, PollHandler
 import math 
 import sqlite3 as sl
-
+from dotenv import load_dotenv
+from telegram.ext import ContextTypes
+from telegram import Update
 from helpers import user_auth, user_auth_pw, check_status
+import textwrap
 
 load_dotenv()
 GROUP_ID = os.environ.get('GROUP_ID')
@@ -17,7 +20,8 @@ con = sl.connect(DB_NAME)
 cur = con.cursor()
 
 async def start(update:Update, context: ContextTypes.DEFAULT_TYPE):
-    #TODO too repetitive 
+    """Induce the authentication process of the user."""
+
     chat_id = update.effective_chat.id
     if chat_id == int(GROUP_ID):
         return
@@ -27,66 +31,80 @@ async def start(update:Update, context: ContextTypes.DEFAULT_TYPE):
     con.commit()
     
 async def help_cmd(update:Update, context: ContextTypes.DEFAULT_TYPE):
+    """Descriptions of the telegram bot commands."""
+
     chat_id = update.effective_chat.id
     if chat_id == int(GROUP_ID):
         return
+
+    help_text = textwrap.dedent("""\
+        /q <Question> to ask a anonymous question in the group.
+
+        /a <Question-ID> <Answer> to anonymously answer the question with the ID in private chat.
+
+        /a_group <Question-ID> <Answer> to anonymously answer the question with the ID in group chat.
+
+        /report_q <Question-ID> <Reason> to report a question.
+
+        /report_a <Answer-ID> <Reason> to report an answer.
+        
+        If you send me an a poll, I will forward it anonymously to the group-chat.
+        """)
+
     #TODO Change into usefull helptext
-    await context.bot.send_message(chat_id=chat_id, text="HELPTEXT")
+    await context.bot.send_message(chat_id=chat_id, 
+    text=help_text)
 
 async def pw_auth(update:Update, context: ContextTypes.DEFAULT_TYPE):
+    """Authenticate by password."""
     chat_id = update.effective_chat.id
     if chat_id == int(GROUP_ID):
         return
         
-    #TODO Change into usefull helptext
     await user_auth_pw(chat_id=chat_id, context=context, user_id=update.effective_user.id,password=' '.join(context.args), cur=cur)
     con.commit()
     
 async def ask_q(update:Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = update.effective_chat.id
-    if chat_id == int(GROUP_ID):
-        return
-    #! repetetive
-    permitted, banned_until = await check_status(chat_id=chat_id, user_id=update.effective_user.id, context=context, cur=cur)
+    """The bot sends the received question into the telegram group without the questioners identiy. """
+    
+    chat_id, telegram_user_id = update.effective_chat.id, update.effective_user.id
+
+    permitted = await check_status(chat_id=chat_id, user_id=telegram_user_id, context=context, cur=cur, group_id=GROUP_ID)
     con.commit()
     if not permitted:
-        if banned_until == 0:
-            return 
-        await context.bot.send_message(chat_id=chat_id, text="You are banned until " + banned_until + '!')
         return
+    
     with con:
-        cur.execute("SELECT id FROM USER WHERE telegram_id=?", (update.effective_user.id,))
+
+        cur.execute("SELECT id FROM USER WHERE telegram_id=?", (telegram_user_id,))
         user_id = cur.fetchone()[0]
 
-        # change structure, update not necessary
+        cur.execute("SELECT id FROM QUESTIONS ORDER BY id DESC LIMIT 1")
+        max_id = cur.fetchone()[0]
+        id = int(max_id) + 1
+
+        message = await context.bot.send_message(chat_id=GROUP_ID, text=(' '.join(context.args) + "\n\n" + "\u2753" + "ID: "  + str(id)))
+
         cur.execute(
-            "INSERT INTO QUESTIONS (user_id, q_text) VALUES (?,?)", (user_id, ' '.join(context.args))
+            "INSERT INTO QUESTIONS (user_id, q_text, message_id) VALUES (?,?,?)", (user_id, ' '.join(context.args), message.message_id)
             )
-        id = cur.lastrowid
-        message = await context.bot.send_message(chat_id=GROUP_ID, text=(' '.join(context.args) + "\n\nID: " + str(id)))
-        
-        cur.execute("UPDATE QUESTIONS SET message_id=? WHERE id=?;", (message.message_id, id))
+
         con.commit()
 
-    
-
-
 async def create_poll(update:Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = update.effective_chat.id
-    if chat_id == int(GROUP_ID):
-        return
-    permitted, banned_until = await check_status(chat_id=chat_id, user_id=update.effective_user.id, context=context, cur=cur)
+    """The bot sends a received poll into the telegram group without the senders identiy."""
+    
+    chat_id, telegram_user_id = update.effective_chat.id, update.effective_user.id
+
+    permitted = await check_status(chat_id=chat_id, user_id=telegram_user_id, context=context, cur=cur, group_id=GROUP_ID)
     con.commit()
     if not permitted:
-        if banned_until == 0:
-            return 
-        await context.bot.send_message(chat_id=chat_id, text="You are banned until " + banned_until + '!')
         return
 
     poll = update.effective_message.poll
     with con:
         
-        cur.execute("SELECT id FROM USER WHERE telegram_id=?", (update.effective_user.id,))
+        cur.execute("SELECT id FROM USER WHERE telegram_id=?", (telegram_user_id,))
         user_id = cur.fetchone()[0]
         
         group_poll = await context.bot.send_poll(
@@ -136,32 +154,29 @@ async def answer_q_in_group(update:Update, context: ContextTypes.DEFAULT_TYPE):
     #Send the answer to person who has written the answer
         
 async def answer_q_command(update:Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = update.effective_chat.id
-    if chat_id == int(GROUP_ID):
-        return
-    permitted, banned_until = await check_status(chat_id=chat_id, user_id=update.effective_user.id, context=context, cur=cur)
+    """Sends the answer of an anonymous question to the questioner without the answers identity."""
+   
+    chat_id, telegram_user_id = update.effective_chat.id, update.effective_user.id
+
+    permitted = await check_status(chat_id=chat_id, user_id=telegram_user_id, context=context, cur=cur, group_id=GROUP_ID)
+    con.commit()
     if not permitted:
-        if banned_until == 0:
-            return 
-        await context.bot.send_message(chat_id=chat_id, text="You are banned until " + banned_until + '!')
         return
     
-    a_text = ' '.join(context.args)
+    a_text = ' '.join(context.args[1:])
     user_id = update.effective_user.id
     anon = True
     in_group = False
 
     q_id = context.args[0]
     
-    #? Check auf int besser?
     if not q_id.isnumeric():
         await context.bot.send_message(chat_id=chat_id, text="Please enter the ID-Number first and then your reply.")
         return 
     
     cur.execute("SELECT id FROM QUESTIONS WHERE id=?", (q_id,))
-    #! to be made uniform, sometime fetchall sometime fetchonce <- There can only be one
-    entry = cur.fetchall()
-    if len(entry) == 0:
+    entry = cur.fetchone()
+    if entry == None:
         await context.bot.send_message(chat_id=chat_id, text="It seems that the ID-Number is incorrect.")
         return 
 
@@ -182,24 +197,22 @@ async def answer_q_command(update:Update, context: ContextTypes.DEFAULT_TYPE):
 
     #TODO The user asking the question cannot really connect it to an ID and AnswerId not helpfull either
     #TODO if needed to report rather report as answer to it? <- not necessary though
-    await context.bot.send_message(chat_id=int(chat_id), text="ID: " + a_text + "\n\nID: " + str(id))
+    await context.bot.send_message(chat_id=int(chat_id), text="\u2753ID: "+ q_id + "\n\n" + a_text + "\n\n\u2757ID: " + str(id))
     con.commit()
 
-#? Answering in group shouldnt be a command but rather a Message Handler
-async def answer_q_to_group_command(update:Update, context: ContextTypes.DEFAULT_TYPE):
 
-    chat_id = update.effective_chat.id
-    if chat_id == int(GROUP_ID):
-        return
-    permitted, banned_until = await check_status(chat_id=chat_id, user_id=update.effective_user.id, context=context, cur=cur)
+async def answer_q_to_group_command(update:Update, context: ContextTypes.DEFAULT_TYPE):
+    """Sends the answer of an anonymous question in the group without the answers identity."""
+
+
+    chat_id, telegram_user_id = update.effective_chat.id, update.effective_user.id
+
+    permitted = await check_status(chat_id=chat_id, user_id=telegram_user_id, context=context, cur=cur, group_id=GROUP_ID)
     con.commit()
     if not permitted:
-        if banned_until == 0:
-            return 
-        await context.bot.send_message(chat_id=chat_id, text="You are banned until " + banned_until + '!')
         return
     
-    a_text = ' '.join(context.args)
+    a_text = ' '.join(context.args[1:])
     user_id = update.effective_user.id
     #! Answering in Group can logically never be anon
     anon = True
@@ -213,8 +226,8 @@ async def answer_q_to_group_command(update:Update, context: ContextTypes.DEFAULT
         return 
     
     cur.execute("SELECT id FROM QUESTIONS WHERE id=?", (q_id,))
-    entry = cur.fetchall()
-    if len(entry) == 0:
+    entry = cur.fetchone()
+    if entry == None:
         await context.bot.send_message(chat_id=chat_id, text="It seems that the ID-Number is incorrect. Try again!")
         return 
 
@@ -229,7 +242,7 @@ async def answer_q_to_group_command(update:Update, context: ContextTypes.DEFAULT
     id = cur.lastrowid
 
     #! same as above on normal q
-    message = await context.bot.send_message(chat_id=int(GROUP_ID), text="ID: " + a_text + "\n\nID: " + str(id))
+    message = await context.bot.send_message(chat_id=int(GROUP_ID), text="\u2753ID: "+ q_id + "\n\n" + a_text + "\n\n\u2757ID: " + str(id))
 
     cur.execute("UPDATE ANSWERS SET message_id=? WHERE id=?", (message.message_id, id))
     con.commit()
@@ -237,6 +250,8 @@ async def answer_q_to_group_command(update:Update, context: ContextTypes.DEFAULT
 
 
 async def report_question(update:Update, context: ContextTypes.DEFAULT_TYPE):
+    """Report a question."""
+    
     chat_id = update.effective_chat.id
 
     # TODO Here Reporter_ID is the telegram chat ID and reported_user_id is the id by the database 
@@ -309,6 +324,8 @@ async def report_question(update:Update, context: ContextTypes.DEFAULT_TYPE):
     
         
 async def report_answer(update:Update, context: ContextTypes.DEFAULT_TYPE):
+    """Report an answer."""
+    
     chat_id = update.effective_chat.id
 
     if not context.args[0].isnumeric():
@@ -326,9 +343,9 @@ async def report_answer(update:Update, context: ContextTypes.DEFAULT_TYPE):
     cur.execute("SELECT 1 FROM REPORTS WHERE reporter_id=? AND reported_a_id=?", (reporter_id, int(context.args[0])))
     #TODO needs cleaning
     permitted = cur.fetchone()
-    #if permitted is not None:
-    #    await context.bot.send_message(chat_id=chat_id, text="You already reported the answer!")
-    #    return 
+    if permitted is not None:
+        await context.bot.send_message(chat_id=chat_id, text="You already reported the answer!")
+        return 
 
     if len(context.args) < 2:
         #? Should reason be a need or an option?
