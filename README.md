@@ -1,12 +1,55 @@
 # AnonQnATelegram
 
 ## 1. Overview
-This is the final project of Tim Kapferer, Tim Petersen and Jana Bormann for the course "Basic Python" of the University Osnabrück. Our goal is to create a bot for Telegram that enables the users to ask and answer questions anonymously in a group chat.
+#### This is the final project of Tim Kapferer, Tim Petersen and Jana Bormann for the course "Basic Python" of the University Osnabrück. <br>
+Our goal is to create a bot for Telegram that enables the users to ask and answer questions anonymously in a group chat.
+The bot plays the role of an interface between a group member wanting to stay anonymous and the group itself.
+To prevent the misuse of anonymity a report system is at hand with a banning mechanism that scales with the size of the group.
 
-## 2. Installation (?)
+## 2. Installation 
+
+First of all you need to have a [Telegram](https://telegram.org/) account and be confortable with using it.<br>  <br>
+Then you need to create a bot using the [BotFather](https://core.telegram.org/bots) and save yourself the token for it. <br>
+We do recommend to leave the Group Privacy settings on default so the bot can only interact with messages directed specificaly at it. <br> <br>
+Now we add the bot to our group, but not too fast! <br>
+To make it easy for yourself open this link "https://api.telegram.org/bot<YOUR_TOKEN>/getUpdates" with your token in the placeholder.<br>
+Now add your bot to the wanted group just as you would with a normal telegram user. <br>
+Afterwards refresh the page and save yourself the group id that can be found inside the json result (Yes the minus infront is also part of it) <br> <br>
+Now download this repo and create a .env file in the root folder. <br>
+It should look simmilar to this: <br>
+```
+TELEGRAM_API_KEY = <Your bot token>
+GROUP_ID = <The id of the group where the bot operates>
+AUTH = <Fallback password if the automatic auth fails>
+DB_NAME = <The name of your database>
+```
+<br>
+
+Before we get to the scripts themself first install the requirements by running ```pip install -r requirements.txt``` in your terminal <br> <br>
+Now to create the database where all the information will be stored run all cells in the [DB Notebook](db_management.ipynb) or run the [DB creation script](create_db.py) <br><br>
+The only thing left to do is to run the [Main script](main.py) and the bot is up and running!
 
 ## 3. How to use the Bot
-[additional modules to be downloaded beforehand, command for executing program, reusable functions etc.]
+### The modules that are used with this bot are: <br>
+- python-telegram-bot (Python wrapper for Telegram Api)
+- sqlite3 (A library to create and interact with databases created in sqlite)
+- asyncio (Internal library for asynchronous programming (more on that later))
+- python-dotenv (Tools for loading the .env file contents into the environment variables)
+<br>
+These are all listed in the requirements.txt file <br>
+
+### Bot commands:
+- /start Starts interaction with the bot and authorizes the user (if possible)
+- /help Shows a help and all possible commands
+- /q <Question> to ask a anonymous question in the group.
+- /a <Question-ID> <Answer> to anonymously answer the question with the ID in private chat.
+- /a_group <Question-ID> <Answer> to anonymously answer the question with the ID in group chat.
+- /report_q <Question-ID> <Reason> to report a question.
+- /report_a <Answer-ID> <Reason> to report an answer.
+- If you send me a poll, I will forward it anonymously to the group-chat.
+The commands above are only available when interacting with the bot inside a private chat.
+- If you answer on a question inside the group it will be registered as such and forwarded to the questioner
+<br>
 
 ## 4. Programming Journey
 ### Additional insights
