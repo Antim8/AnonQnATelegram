@@ -1,18 +1,9 @@
-import asyncio
-from email import message
 from email.mime import application
 import logging
-from httpx import delete
-from telegram import Chat, Update, Poll, KeyboardButtonPollType
 import os
 from dotenv import load_dotenv
-import telegram
-from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters, PollAnswerHandler, PollHandler
-import math 
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters
 from commands import *
-
-
-import sqlite3 as sl
 
 #TODO Prevent bots from sending messages by checking update effetive user is_bot
 #TODO Evtl. Emojis oder ahnliches hinzufuegen um die IDs besser unterscheiden zu koennen 
