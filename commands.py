@@ -1,4 +1,9 @@
+from contextvars import Context
+from pickle import TRUE
+from telegram import Chat, Update, Poll, KeyboardButtonPollType
 import os
+from dotenv import load_dotenv
+from telegram.ext import ContextTypes, filters, PollAnswerHandler, PollHandler
 import math 
 import sqlite3 as sl
 from dotenv import load_dotenv
@@ -112,6 +117,41 @@ async def create_poll(update:Update, context: ContextTypes.DEFAULT_TYPE):
         
         cur.execute("INSERT INTO QUESTIONS(user_id, q_text, message_id) VALUES(?,?,?)",(user_id, poll.question, group_poll.message_id ))
         con.commit()
+      
+#TODO Refer answer to question  
+async def answer_q_in_group(update:Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    if chat_id != int(GROUP_ID):
+        return
+    #See to which question the answer was proposed
+    q_message_id = update.effective_message.reply_to_message.id
+    with con:
+        cur.execute("SELECT id, user_id FROM QUESTIONS WHERE message_id=?",(q_message_id,))
+        q_id, q_user_id = cur.fetchone()
+        
+        a_text = update.message.text
+        a_user_telegram_id = int(update.effective_user.id)
+        
+        cur.execute("SELECT id FROM USER WHERE telegram_id=?",(a_user_telegram_id,))
+        
+        try:
+            a_user_id = cur.fetchone()[0]
+        except:
+            cur.execute("INSERT INTO USER(telegram_id) VALUES (?)", (a_user_telegram_id,))
+            a_user_id = cur.lastrowid
+            con.commit()
+        
+        
+        cur.execute("INSERT INTO ANSWERS(q_id, user_id, a_text, anon, in_group, message_id) VALUES(?,?,?,?,?,?)", (q_id, a_user_id,a_text, False, True, update.effective_message.id,))
+        con.commit()
+        
+        cur.execute("SELECT telegram_id FROM USER WHERE id=?", (q_user_id,))
+        q_user_telegram_id = cur.fetchone()[0]
+        
+        await context.bot.send_message(chat_id=q_user_telegram_id, text=a_text)
+        
+        
+    #Send the answer to person who has written the answer
         
 async def answer_q_command(update:Update, context: ContextTypes.DEFAULT_TYPE):
     """Sends the answer of an anonymous question to the questioner without the answers identity."""
@@ -160,9 +200,10 @@ async def answer_q_command(update:Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(chat_id=int(chat_id), text="\u2753ID: "+ q_id + "\n\n" + a_text + "\n\n\u2757ID: " + str(id))
     con.commit()
 
-#? Answering in group shouldnt be a command but rather a Message Handler
-async def answer_q_group_command(update:Update, context: ContextTypes.DEFAULT_TYPE):
+
+async def answer_q_to_group_command(update:Update, context: ContextTypes.DEFAULT_TYPE):
     """Sends the answer of an anonymous question in the group without the answers identity."""
+
 
     chat_id, telegram_user_id = update.effective_chat.id, update.effective_user.id
 
