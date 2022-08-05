@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from telegram.ext import ContextTypes
 from telegram import Update
 from helpers import user_auth, user_auth_pw, check_status
+import textwrap
 
 load_dotenv()
 GROUP_ID = os.environ.get('GROUP_ID')
@@ -31,8 +32,23 @@ async def help_cmd(update:Update, context: ContextTypes.DEFAULT_TYPE):
     if chat_id == int(GROUP_ID):
         return
 
+    help_text = textwrap.dedent("""\
+        /q <Question> to ask a anonymous question in the group.
+
+        /a <Question-ID> <Answer> to anonymously answer the question with the ID in private chat.
+
+        /a_group <Question-ID> <Answer> to anonymously answer the question with the ID in group chat.
+
+        /report_q <Question-ID> <Reason> to report a question.
+
+        /report_a <Answer-ID> <Reason> to report an answer.
+        
+        If you send me an a poll, I will forward it anonymously to the group-chat.
+        """)
+
     #TODO Change into usefull helptext
-    await context.bot.send_message(chat_id=chat_id, text="HELPTEXT")
+    await context.bot.send_message(chat_id=chat_id, 
+    text=help_text)
 
 async def pw_auth(update:Update, context: ContextTypes.DEFAULT_TYPE):
     """Authenticate by password."""
