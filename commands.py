@@ -11,6 +11,7 @@ from telegram.ext import ContextTypes
 from telegram import Update
 from helpers import user_auth, user_auth_pw, check_status, get_last_question_id
 import textwrap
+import datetime
 
 load_dotenv()
 GROUP_ID = os.environ.get('GROUP_ID')
@@ -26,7 +27,7 @@ async def start(update:Update, context: ContextTypes.DEFAULT_TYPE):
     if chat_id == int(GROUP_ID):
         return
     
-    await context.bot.send_message(chat_id=chat_id, text="Hey there, pls wait while I try to authenticate you")
+    await context.bot.send_message(chat_id=chat_id, text="Hey there, please wait while I try to authenticate you.")
     await user_auth(chat_id=chat_id, user_id=update.effective_user.id, context=context, cur=cur)
     con.commit()
     
@@ -79,7 +80,7 @@ async def ask_q(update:Update, context: ContextTypes.DEFAULT_TYPE):
         cur.execute("SELECT id FROM USER WHERE telegram_id=?", (telegram_user_id,))
         user_id = cur.fetchone()[0]
 
-        id = get_last_question_id(cur=cur)
+        id = await get_last_question_id(cur=cur)
 
         message = await context.bot.send_message(chat_id=GROUP_ID, text=(' '.join(context.args) + "\n\n" + "\u2753" + "ID: "  + str(id)))
 
@@ -107,7 +108,6 @@ async def create_poll(update:Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = cur.fetchone()[0]
 
         id = await get_last_question_id(cur=cur)
-        print(id)
         
         group_poll = await context.bot.send_poll(
             chat_id=GROUP_ID,
@@ -274,7 +274,6 @@ async def report_question(update:Update, context: ContextTypes.DEFAULT_TYPE):
     cur.execute("SELECT 1 FROM REPORTS WHERE reporter_id=? AND reported_q_id=?", (reporter_id, int(context.args[0])))
     permitted = cur.fetchone()
     if permitted is not None:
-        #? Message seems unnecassary
         await context.bot.send_message(chat_id=chat_id, text="You already reported the question!")
         return 
 
@@ -314,15 +313,19 @@ async def report_question(update:Update, context: ContextTypes.DEFAULT_TYPE):
         
         cur.execute("UPDATE QUESTIONS SET banned=1 WHERE id=?", (context.args[0],)) 
 
+        num_days = 3
+
         cur.execute(
-        "UPDATE USER SET banned_until = DATE('now', '+3 day') WHERE id=?", 
+        "UPDATE USER SET banned_until = DATE('now', '+" + str(num_days) + "day') WHERE id=?", 
         (reported_user_id,)
         )  
         cur.execute("SELECT telegram_id FROM USER WHERE id=?", (reported_user_id,))
         telegram_id = cur.fetchone()[0]
         con.commit()
-        #! Hardcoded answer
-        await context.bot.send_message(chat_id=telegram_id, text="Your Question with the ID: " + context.args[0] +  " received mutiple reports! You are banned for three days.")
+
+        banned_until = datetime.datetime.strftime(datetime.date.today() + datetime.timedelta(days=num_days), '%Y-%m-%d')
+
+        await context.bot.send_message(chat_id=telegram_id, text="Your Question with the ID: " + context.args[0] +  " received mutiple reports. You are banned until " + banned_until + '.')
     
         
 async def report_answer(update:Update, context: ContextTypes.DEFAULT_TYPE):
@@ -345,9 +348,9 @@ async def report_answer(update:Update, context: ContextTypes.DEFAULT_TYPE):
     cur.execute("SELECT 1 FROM REPORTS WHERE reporter_id=? AND reported_a_id=?", (reporter_id, int(context.args[0])))
     #TODO needs cleaning
     permitted = cur.fetchone()
-    if permitted is not None:
-        await context.bot.send_message(chat_id=chat_id, text="You already reported the answer!")
-        return 
+    #if permitted is not None:
+    #    await context.bot.send_message(chat_id=chat_id, text="You already reported the answer!")
+    #    return 
 
     if len(context.args) < 2:
         #? Should reason be a need or an option?
@@ -379,9 +382,15 @@ async def report_answer(update:Update, context: ContextTypes.DEFAULT_TYPE):
             await context.bot.send_message(chat_id=chat_id, text="The respective account is banned.")
             return
         
-        cur.execute("SELECT message_id FROM ANSWERS WHERE id=?", (context.args[0],))
-        message_id = cur.fetchone()[0]
-        await context.bot.delete_message(chat_id=GROUP_ID, message_id=message_id)
+        try:
+            cur.execute("SELECT message_id FROM ANSWERS WHERE id=?", (context.args[0],))
+            message_id = cur.fetchone()[0]
+            await context.bot.delete_message(chat_id=GROUP_ID, message_id=message_id)
+        except:
+            cur.execute("SELECT message_id FROM ANSWERS WHERE id=?", (context.args[0],))
+            message_id = cur.fetchone()[0]
+            await context.bot.delete_message(chat_id=chat_id, message_id=message_id)
+
         
         
         cur.execute("UPDATE QUESTIONS SET banned=1 WHERE id=?", (context.args[0],)) 
@@ -390,10 +399,15 @@ async def report_answer(update:Update, context: ContextTypes.DEFAULT_TYPE):
         cur.execute("SELECT id FROM USER WHERE telegram_id=?", (reported_user_id,))
         id = cur.fetchone()[0]
 
+        num_days = 3
+
         cur.execute(
-        "UPDATE USER SET banned_until = DATE('now', '+3 day') WHERE id=?", 
+        "UPDATE USER SET banned_until = DATE('now', '+" + str(num_days) + "day') WHERE id=?", 
         (id,)
         )  
         con.commit()
-        #! Hardcoded answer
-        await context.bot.send_message(chat_id=reported_user_id, text="Your Answer with the ID: " + context.args[0] +  " received mutiple reports! You are banned for three days.")
+        
+        banned_until = datetime.datetime.strftime(datetime.date.today() + datetime.timedelta(days=num_days), '%Y-%m-%d')
+
+        await context.bot.send_message(chat_id=reported_user_id, text="Your Answer with the ID: " + context.args[0] +  " received mutiple reports. You are banned until " + banned_until + '.')
+

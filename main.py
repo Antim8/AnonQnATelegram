@@ -6,13 +6,9 @@ from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, fil
 from commands import *
 
 #TODO Prevent bots from sending messages by checking update effetive user is_bot
-#TODO Evtl. Emojis oder ahnliches hinzufuegen um die IDs besser unterscheiden zu koennen 
-#TODO Poll
 #TODO teilweise inkosistent da manchmal die telegram_id abgespeichert wird und andernmal die DB-ID 
-#TODO help_cmd HelpText schreiben
 #TODO Testing 
 #TODO Threadsafe db inserting?
-#TODO All sql commands need to end with ;
 #TODO take /2 or /4 of sqrt for banning
 # No encouragement to "Try again!". redundant and not fitting -> No exclamation marks 
 
