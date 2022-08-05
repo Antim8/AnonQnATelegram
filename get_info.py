@@ -9,10 +9,10 @@ async def main():
     TOKEN = os.environ.get('TELEGRAM_API_KEY')
     bot = telegram.Bot(token=TOKEN)
     async with bot:
-        print(await bot.get_me())
-
-
-
-
+        bot = await bot.get_me()
+        print("Information about the bot: ")
+        print("Name: ", bot['username'])
+        print("ID: ", bot['id'])
+        
 if __name__ == "__main__":
     asyncio.run(main())
