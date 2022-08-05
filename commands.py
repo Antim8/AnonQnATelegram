@@ -9,7 +9,7 @@ import sqlite3 as sl
 from dotenv import load_dotenv
 from telegram.ext import ContextTypes
 from telegram import Update
-from helpers import user_auth, user_auth_pw, check_status
+from helpers import user_auth, user_auth_pw, check_status, get_last_question_id
 import textwrap
 
 load_dotenv()
@@ -79,9 +79,7 @@ async def ask_q(update:Update, context: ContextTypes.DEFAULT_TYPE):
         cur.execute("SELECT id FROM USER WHERE telegram_id=?", (telegram_user_id,))
         user_id = cur.fetchone()[0]
 
-        cur.execute("SELECT id FROM QUESTIONS ORDER BY id DESC LIMIT 1")
-        max_id = cur.fetchone()[0]
-        id = int(max_id) + 1
+        id = get_last_question_id(cur=cur)
 
         message = await context.bot.send_message(chat_id=GROUP_ID, text=(' '.join(context.args) + "\n\n" + "\u2753" + "ID: "  + str(id)))
 
@@ -96,20 +94,24 @@ async def create_poll(update:Update, context: ContextTypes.DEFAULT_TYPE):
     
     chat_id, telegram_user_id = update.effective_chat.id, update.effective_user.id
 
-    permitted = await check_status(chat_id=chat_id, user_id=telegram_user_id, context=context, cur=cur, group_id=GROUP_ID)
+    poll = update.effective_message.poll
+
+    permitted = await check_status(chat_id=chat_id, user_id=telegram_user_id, context=False, cur=cur, group_id=GROUP_ID)
     con.commit()
     if not permitted:
         return
 
-    poll = update.effective_message.poll
     with con:
         
         cur.execute("SELECT id FROM USER WHERE telegram_id=?", (telegram_user_id,))
         user_id = cur.fetchone()[0]
+
+        id = await get_last_question_id(cur=cur)
+        print(id)
         
         group_poll = await context.bot.send_poll(
             chat_id=GROUP_ID,
-            question=poll.question, 
+            question=(poll.question + "\n\n" + "\u2753ID: " + str(id)), 
             options=[i.text for i in poll.options],
             is_anonymous=poll.is_anonymous,
             allows_multiple_answers=poll.allows_multiple_answers
