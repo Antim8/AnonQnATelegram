@@ -1,5 +1,4 @@
 import asyncio
-from re import L
 import telegram
 import dotenv
 import os
