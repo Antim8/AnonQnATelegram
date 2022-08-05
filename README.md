@@ -4,20 +4,20 @@
 #### This is the final project of Tim Kapferer, Tim Petersen and Jana Bormann for the course "Basic Python" of the University Osnabrück. <br>
 Our goal is to create a bot for Telegram that enables the users to ask and answer questions anonymously in a group chat.
 The bot plays the role of an interface between a group member wanting to stay anonymous and the group itself.
-To prevent the misuse of anonymity a report system is at hand with a banning mechanism that scales with the size of the group.
+To prevent the misuse of anonymity a reporting system is at hand with a banning mechanism that scales with the size of the group.
 
 ## 2. Installation 
 
-First of all you need to have a [Telegram](https://telegram.org/) account and be confortable with using it.
-Also a installed [Python](https://python.org) 3.9 is needed<br>  <br>
+First of all, you need to have a [Telegram](https://telegram.org/) account and be comfortable with using it.
+Also, installed [Python](https://python.org) 3.9 is needed<br>  <br>
 Then you need to create a bot using the [BotFather](https://core.telegram.org/bots) and save yourself the token for it. <br>
-We do recommend to leave the Group Privacy settings on default so the bot can only interact with messages directed specificaly at it. <br> <br>
+We do recommend to leave the Group Privacy settings on default so the bot can only interact with messages directed specifically at it. <br> <br>
 Now we add the bot to our group, but not too fast! <br>
 To make it easy for yourself open this link "https://api.telegram.org/bot<YOUR_TOKEN>/getUpdates" with your token in the placeholder.<br>
 Now add your bot to the wanted group just as you would with a normal telegram user. <br>
-Afterwards refresh the page and save yourself the group id that can be found inside the json result (Yes the minus infront is also part of it) <br> <br>
+Afterwards refresh the page and save yourself the group id that can be found inside the json result (Yes the minus in front is also part of it) <br> <br>
 Now download this repo and create a .env file in the root folder. <br>
-It should look simmilar to this: <br>
+It should look similar to this: <br>
 ```
 TELEGRAM_API_KEY = <Your bot token>
 GROUP_ID = <The id of the group where the bot operates>
@@ -42,14 +42,14 @@ These are all listed in the requirements.txt file <br>
 ### Bot commands:
 - /start Starts interaction with the bot and authorizes the user (if possible)
 - /help Shows a help and all possible commands
-- /q <Question> to ask a anonymous question in the group.
+- /q <Question> to ask an anonymous question in the group.
 - /a <Question-ID> <Answer> to anonymously answer the question with the ID in private chat.
 - /a_group <Question-ID> <Answer> to anonymously answer the question with the ID in group chat.
 - /report_q <Question-ID> <Reason> to report a question.
 - /report_a <Answer-ID> <Reason> to report an answer.
 - If you send me a poll, I will forward it anonymously to the group-chat.
 The commands above are only available when interacting with the bot inside a private chat.
-- If you answer on a question inside the group it will be registered as such and forwarded to the questioner
+- If you answer a question inside the group it will be registered as such and forwarded to the questioner
 <br>
 
 ## 4. Programming Journey
