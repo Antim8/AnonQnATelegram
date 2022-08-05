@@ -8,8 +8,9 @@ import sqlite3 as sl
 from dotenv import load_dotenv
 from telegram.ext import ContextTypes
 from telegram import Update
-from helpers import user_auth, user_auth_pw, check_status
+from helpers import user_auth, user_auth_pw, check_status, get_last_question_id
 import textwrap
+import datetime
 
 """This file includes all commands the bot can perform
 """
@@ -30,6 +31,7 @@ async def start(update:Update, context: ContextTypes.DEFAULT_TYPE):
     if chat_id == int(GROUP_ID):
         return
     
+
     await context.bot.send_message(chat_id=chat_id, text="Hey there, pls wait while I try to authenticate you")
     
     # By using "with con" we are ensuring that database access is thread-safe and less likely to fail
@@ -38,7 +40,7 @@ async def start(update:Update, context: ContextTypes.DEFAULT_TYPE):
         
         # con.commit confirms and saves changes made to the db
         con.commit()
-    
+        
     
 async def help_cmd(update:Update, context: ContextTypes.DEFAULT_TYPE):
     """Descriptions of the telegram bot commands."""
@@ -90,9 +92,7 @@ async def ask_q(update:Update, context: ContextTypes.DEFAULT_TYPE):
         cur.execute("SELECT id FROM USER WHERE telegram_id=?", (telegram_user_id,))
         user_id = cur.fetchone()[0]
 
-        cur.execute("SELECT id FROM QUESTIONS ORDER BY id DESC LIMIT 1")
-        max_id = cur.fetchone()[0]
-        id = int(max_id) + 1
+        id = await get_last_question_id(cur=cur)
 
         message = await context.bot.send_message(chat_id=GROUP_ID, text=(' '.join(context.args) + "\n\n" + "\u2753" + "ID: "  + str(id)))
 
@@ -109,21 +109,25 @@ async def create_poll(update:Update, context: ContextTypes.DEFAULT_TYPE):
     
     chat_id, telegram_user_id = update.effective_chat.id, update.effective_user.id
 
+    poll = update.effective_message.poll
+
     with con:
         permitted = await check_status(chat_id=chat_id, user_id=telegram_user_id, context=context, cur=cur, group_id=GROUP_ID)
         con.commit()
+
     if not permitted:
         return
 
-    poll = update.effective_message.poll
     with con:
         
         cur.execute("SELECT id FROM USER WHERE telegram_id=?", (telegram_user_id,))
         user_id = cur.fetchone()[0]
+
+        id = await get_last_question_id(cur=cur)
         
         group_poll = await context.bot.send_poll(
             chat_id=GROUP_ID,
-            question=poll.question, 
+            question=(poll.question + "\n\n" + "\u2753ID: " + str(id)), 
             options=[i.text for i in poll.options],
             is_anonymous=poll.is_anonymous,
             allows_multiple_answers=poll.allows_multiple_answers
@@ -291,6 +295,7 @@ async def report_question(update:Update, context: ContextTypes.DEFAULT_TYPE):
             return 
 
         
+
         cur.execute(
             "INSERT INTO  REPORTS (reporter_id, reported_user_id, reported_q_id, why) VALUES (?,?,?,?)", 
             (reporter_id, reported_user_id, context.args[0], ' '.join(context.args[1:]))
@@ -346,6 +351,7 @@ async def report_answer(update:Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     reporter_id = update.effective_user.id
+
     with con:
         cur.execute("SELECT user_id FROM ANSWERS WHERE id=?", (context.args[0],))
         entry = cur.fetchone()

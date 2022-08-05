@@ -7,7 +7,6 @@ from commands import *
 
 """This is the main script handling the bot
 """ 
-#TODO Testing  
 
 # Load the important information needed to start the bot
 load_dotenv()
