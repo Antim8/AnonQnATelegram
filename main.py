@@ -5,26 +5,25 @@ from dotenv import load_dotenv
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters
 from commands import *
 
-#TODO Prevent bots from sending messages by checking update effetive user is_bot
-#TODO teilweise inkosistent da manchmal die telegram_id abgespeichert wird und andernmal die DB-ID 
-#TODO Testing 
-#TODO Threadsafe db inserting?
-#TODO take /2 or /4 of sqrt for banning
-# No encouragement to "Try again!". redundant and not fitting -> No exclamation marks 
+"""This is the main script handling the bot
+""" 
 
+# Load the important information needed to start the bot
 load_dotenv()
 TOKEN = os.environ.get('TELEGRAM_API_KEY')
 
+# Basic logging config 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
 
-#TODO Message Handler with filters to REPLY -> Grab ID and forward answers to initial chat
 if __name__ == "__main__":
     application = ApplicationBuilder().token(TOKEN).build()
     
     handlers = []
+    
+    # Handlers listening to specific predefined commands
     handlers.append(CommandHandler('start', start))
     handlers.append(CommandHandler('help', help_cmd))
     handlers.append(CommandHandler('password', pw_auth))
@@ -34,11 +33,14 @@ if __name__ == "__main__":
     handlers.append(CommandHandler('a', answer_q_command))
     handlers.append(CommandHandler('a_group', answer_q_to_group_command))
     
+    # Handlers listening to normal messages addressed towards the bot with filters
     handlers.append(MessageHandler(filters.POLL, create_poll))
+    # This means it should fall into the filter for replys and not into the filter for commands
     handlers.append(MessageHandler(filters.REPLY & (~filters.COMMAND), answer_q_in_group))
     
     application.add_handlers(handlers=handlers)
     
+    # Looping the bot so it stays up until error or ctrl+c
     application.run_polling()
 
     
