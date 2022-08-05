@@ -1,4 +1,5 @@
 
+import datetime
 import os
 import textwrap
 import math 
@@ -325,15 +326,20 @@ async def report_question(update:Update, context: ContextTypes.DEFAULT_TYPE):
             await context.bot.delete_message(chat_id=GROUP_ID, message_id=message_id)
             
             cur.execute("UPDATE QUESTIONS SET banned=1 WHERE id=?", (context.args[0],)) 
+            
+            num_days = 3
 
             cur.execute(
-            "UPDATE USER SET banned_until = DATE('now', '+3 day') WHERE id=?", 
+            "UPDATE USER SET banned_until = DATE('now', '+" + str(num_days) + "day') WHERE id=?",  
             (reported_user_id,)
             )  
             cur.execute("SELECT telegram_id FROM USER WHERE id=?", (reported_user_id,))
             telegram_id = cur.fetchone()[0]
             con.commit()
-    await context.bot.send_message(chat_id=telegram_id, text="Your Question with the ID: " + context.args[0] +  " received mutiple reports! You are banned for three days.")
+    
+            banned_until = datetime.datetime.strftime(datetime.date.today() + datetime.timedelta(days=num_days), '%Y-%m-%d')
+
+            await context.bot.send_message(chat_id=telegram_id, text="Your Question with the ID: " + context.args[0] +  " received mutiple reports. You are banned until " + banned_until + '.')
     
         
 async def report_answer(update:Update, context: ContextTypes.DEFAULT_TYPE):
@@ -390,20 +396,30 @@ async def report_answer(update:Update, context: ContextTypes.DEFAULT_TYPE):
                 await context.bot.send_message(chat_id=chat_id, text="The respective account has been punished.")
                 return
             
-            cur.execute("SELECT message_id FROM ANSWERS WHERE id=?", (context.args[0],))
-            message_id = cur.fetchone()[0]
-            await context.bot.delete_message(chat_id=GROUP_ID, message_id=message_id)
+            try:
+                cur.execute("SELECT message_id FROM ANSWERS WHERE id=?", (context.args[0],))
+                message_id = cur.fetchone()[0]
+                await context.bot.delete_message(chat_id=GROUP_ID, message_id=message_id)
+            except:
+                cur.execute("SELECT message_id FROM ANSWERS WHERE id=?", (context.args[0],))
+                message_id = cur.fetchone()[0]
+                await context.bot.delete_message(chat_id=chat_id, message_id=message_id)
             
-            
+            num_days = 3
+
             cur.execute("UPDATE QUESTIONS SET banned=1 WHERE id=?", (context.args[0],)) 
             #TODO try to delete q 
 
             cur.execute("SELECT id FROM USER WHERE telegram_id=?", (reported_user_id,))
             id = cur.fetchone()[0]
 
+            
             cur.execute(
-            "UPDATE USER SET banned_until = DATE('now', '+3 day') WHERE id=?", 
+            "UPDATE USER SET banned_until = DATE('now', '+" + str(num_days) + "day') WHERE id=?", 
             (id,)
             )  
             con.commit()
-        await context.bot.send_message(chat_id=reported_user_id, text="Your Answer with the ID: " + context.args[0] +  " received mutiple reports! You are banned for three days.")
+            
+            banned_until = datetime.datetime.strftime(datetime.date.today() + datetime.timedelta(days=num_days), '%Y-%m-%d')
+
+            await context.bot.send_message(chat_id=reported_user_id, text="Your Answer with the ID: " + context.args[0] +  " received mutiple reports. You are banned until " + banned_until + '.')

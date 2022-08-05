@@ -79,3 +79,21 @@ The last problem we encountered was that since the bot is working completely asy
 
 ## 5. Results
 [screenshots Frage gestellt + beantwortet, user blocken etc]
+
+
+<img src="Images/start.PNG" width="250">
+The /start command authenticates the user by insert the user data into the table USER. <br>
+<img src="Images/help_text.PNG" width="250">
+The /help command shows the most important commands and explains how to make anonymous polls. <br>
+<img src="Images/question_group.PNG" width="250">
+After a user ask a question the bot forwarded it anonymously to the group.<br>
+<img src="Images/question_answer_group.PNG" width="250">
+Another user give an anonymous answer to the group.<br>
+<img src="Images/poll_user.PNG" width="250">
+Send a poll to the bot, and the bot will forward the poll to the group anonymously.<br>
+<img src="Images/poll_group.PNG" width="250">
+That's how the poll looks like in the group.<br>
+
+<img src="Images/ban.PNG" width="250">
+If a user receives multiple reports, the user might receive a ban.
+
