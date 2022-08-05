@@ -1,6 +1,9 @@
 import os
 from datetime import datetime
 
+"""This file includes helper functions for the commands.
+"""
+
 async def user_auth(chat_id, user_id, context, cur):
     """Insert a new user into the database if not already existing.
     
@@ -30,6 +33,7 @@ async def user_auth(chat_id, user_id, context, cur):
         await context.bot.send_message(chat_id=chat_id, text="Seems like you are not in the group or there was a mistake while trying to authenticate you, pls try /start again or enter the command /password followed by the password for our special website")
         return False
     
+    
 async def user_auth_pw(chat_id, user_id, context, password, cur):
     """Insert a new user into the database if not already existing.
     
@@ -41,27 +45,23 @@ async def user_auth_pw(chat_id, user_id, context, password, cur):
     cur      -- curser object of the sql database connection
     """
     if password == os.environ.get("AUTH"):
-        #TODO Set auth in DB
-
-        # TODO Repetitive 
+        
         cur.execute("SELECT telegram_id FROM USER WHERE telegram_id=?", (user_id,))
         entry = cur.fetchone()
-        if entry == None:
-            # Insert the new User into the table USER
-            with cur:
-                cur.execute(
-                "INSERT INTO USER (telegram_id) VALUES (?)", (user_id,)
-                )
+        if entry == None:        
+            cur.execute(
+            "INSERT INTO USER (telegram_id) VALUES (?)", (user_id,)
+            )
         else:
-            await context.bot.send_message(chat_id=chat_id, text="You are already authorised!")
+            await context.bot.send_message(chat_id=chat_id, text="You are already authorised.")
             return True
         
         await context.bot.send_message(chat_id=chat_id, text="Congrats you can now use the bot! Enter the /help command to see how everything works")
         return True
     else:
-        await context.bot.send_message(chat_id=chat_id, text="Wrong password, pls try again")
-        #TODO pw try count up
+        await context.bot.send_message(chat_id=chat_id, text="Wrong password, pls try again.")
         return False
+
 
 async def check_status(chat_id, user_id, context, cur, group_id):
     """Check the status of the user and handel it respectively. 
