@@ -19,6 +19,9 @@ import sqlite3 as sl
 #TODO teilweise inkosistent da manchmal die telegram_id abgespeichert wird und andernmal die DB-ID 
 #TODO help_cmd HelpText schreiben
 #TODO Testing 
+#TODO Threadsafe db inserting?
+#TODO All sql commands need to end with ;
+#TODO take /2 or /4 of sqrt for banning
 # No encouragement to "Try again!". redundant and not fitting -> No exclamation marks 
 
 load_dotenv()
@@ -41,8 +44,7 @@ async def start(update:Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     await context.bot.send_message(chat_id=chat_id, text="Hey there, pls wait while I try to authenticate you")
-    a = await user_auth(chat_id=chat_id, user_id=update.effective_user.id, context=context)
-    print(a)
+    await user_auth(chat_id=chat_id, user_id=update.effective_user.id, context=context)
     
 async def help_cmd(update:Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
@@ -71,18 +73,19 @@ async def ask_q(update:Update, context: ContextTypes.DEFAULT_TYPE):
             return 
         await context.bot.send_message(chat_id=chat_id, text="You are banned until " + banned_until + '!')
         return
-    
-    cur.execute("SELECT id FROM USER WHERE telegram_id=?", (update.effective_user.id,))
-    user_id = cur.fetchone()[0]
+    with cur:
+        cur.execute("SELECT id FROM USER WHERE telegram_id=?", (update.effective_user.id,))
+        user_id = cur.fetchone()[0]
 
-    # change structure, update not necessary
-    cur.execute(
-        "INSERT INTO QUESTIONS (user_id, q_text) VALUES (?,?)", (user_id, ' '.join(context.args))
-        )
-    id = cur.lastrowid
-    message = await context.bot.send_message(chat_id=GROUP_ID, text=(' '.join(context.args) + "\n\nID: " + str(id)))
-    
-    cur.execute("UPDATE QUESTIONS SET message_id=? WHERE id=?", (message.message_id, id))
+        # change structure, update not necessary
+        cur.execute(
+            "INSERT INTO QUESTIONS (user_id, q_text) VALUES (?,?)", (user_id, ' '.join(context.args))
+            )
+        id = cur.lastrowid
+        message = await context.bot.send_message(chat_id=GROUP_ID, text=(' '.join(context.args) + "\n\nID: " + str(id)))
+        
+        cur.execute("UPDATE QUESTIONS SET message_id=? WHERE id=?;", (message.message_id, id))
+        con.commit()
 
     
 
@@ -99,15 +102,21 @@ async def create_poll(update:Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     poll = update.effective_message.poll
-    
-    await context.bot.send_poll(
-        chat_id=GROUP_ID,
-        question=poll.question, 
-        options=[i.text for i in poll.options],
-        is_anonymous=poll.is_anonymous,
-        allows_multiple_answers=poll.allows_multiple_answers
-        )
-
+    with cur:
+        
+        cur.execute("SELECT id FROM USER WHERE telegram_id=?", (update.effective_user.id,))
+        user_id = cur.fetchone()[0]
+        
+        group_poll = await context.bot.send_poll(
+            chat_id=GROUP_ID,
+            question=poll.question, 
+            options=[i.text for i in poll.options],
+            is_anonymous=poll.is_anonymous,
+            allows_multiple_answers=poll.allows_multiple_answers
+            )
+        
+        cur.execute("INSERT INTO QUESTIONS(user_id, q_text, message_id) VALUES(?,?,?)",(user_id, poll.question, group_poll.message_id ))
+        
 async def answer_q_command(update:Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     if chat_id == int(GROUP_ID):
@@ -353,20 +362,21 @@ async def user_auth(chat_id, user_id, context):
     if await context.bot.get_chat_member(chat_id, user_id):
         #TODO Set auth in DB
 
-        cur.execute("SELECT telegram_id FROM USER WHERE telegram_id=?", (user_id,))
-        entry = cur.fetchall()
-        if len(entry) == 0:
-            # Create Data Entry
-            with con:
-                con.execute(
+        with cur:
+            cur.execute("SELECT telegram_id FROM USER WHERE telegram_id=?;", (user_id,))
+            entry = cur.fetchall()
+            if len(entry) == 0:
+                # Create Data Entry
+                cur.execute(
                 "INSERT INTO USER (telegram_id) VALUES (?)", (user_id,)
                 )
-        else:
-            await context.bot.send_message(chat_id=chat_id, text="You are already authorised!")
-            return True
+                con.commit()
+            else:
+                await context.bot.send_message(chat_id=chat_id, text="You are already authorised!")
+                return True
 
-        await context.bot.send_message(chat_id=chat_id, text="Congrats you can now use the bot! Enter the /help command to see how everything works")
-        return True
+            await context.bot.send_message(chat_id=chat_id, text="Congrats you can now use the bot! Enter the /help command to see how everything works")
+            return True
     else:
         await context.bot.send_message(chat_id=chat_id, text="Seems like you are not in the group or there was a mistake while trying to authenticate you, pls try /start again or enter the command /password followed by the password for our special website")
         return False
