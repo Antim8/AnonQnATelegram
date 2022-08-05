@@ -85,12 +85,16 @@ async def check_status(chat_id, user_id, context, cur, group_id):
         await context.bot.send_message(chat_id=chat_id, text="Authenticate with /Start .")
         return False
     user_id = user_id[0]
-    
-    # Check if the command message included content
-    if len(context.args) == 0:
-        await context.bot.send_message(chat_id=chat_id, text="You have to specify an ID, followed by the respective content.")
-        return False
 
+    # Check if the command message included content
+    try: 
+        if len(context.args) == 0:
+            await context.bot.send_message(chat_id=chat_id, text="You have to specify an ID, followed by the respective content.")
+            return False
+    # For poll context.args is None 
+    except:
+        pass
+    
     cur.execute("SELECT banned_until from USER WHERE id=?", (user_id,))
     banned_until = cur.fetchone()[0]
     
@@ -106,4 +110,19 @@ async def check_status(chat_id, user_id, context, cur, group_id):
     else:
         await context.bot.send_message(chat_id=chat_id, text="You are banned until " + banned_until + '.')
         return False
-    
+
+
+async def get_last_question_id(cur):
+    """Get the next question id.
+
+    Keyword arguments:
+    cur -- curser object of the sql database connection
+    """
+
+    cur.execute("SELECT id FROM QUESTIONS ORDER BY id DESC LIMIT 1")
+    max_id = cur.fetchone()[0]
+    id = int(max_id) + 1
+
+    print(id, max_id)
+
+    return id
