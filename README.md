@@ -56,6 +56,10 @@ The commands above are only available when interacting with the bot inside a pri
 [libraries, paradigms etc]
 ### Challenges
 [What challenges and how approached]
+#### Required Reports
+One important aspect of the report system is that the criteria to ban a user must depend on the number of group members. As Telegram groups can have up to 200 000 group members, a simple linear function did not show satisfying results because the number of reports required to ban a user was very low even for larger groups. We choose the integer square root function, since the number of required reports are rising faster for small groups than for the linear function.
+
+
 ### Possible additions
 - polls sind bereits drin right?
 - special Macht für den admin?
