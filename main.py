@@ -44,11 +44,11 @@ if __name__ == "__main__":
     handlers.append(CommandHandler('q', ask_q))
     handlers.append(CommandHandler('report_q', report_question))
     handlers.append(CommandHandler('report_a', report_answer))
-    handlers.append(MessageHandler(filters.POLL, create_poll))
-
-    #handlers.append(MessageHandler(filters.REPLY), answer_q_reply)
     handlers.append(CommandHandler('a', answer_q_command))
-    handlers.append(CommandHandler('a_group', answer_q_group_command))
+    handlers.append(CommandHandler('a_group', answer_q_to_group_command))
+    
+    handlers.append(MessageHandler(filters.POLL, create_poll))
+    handlers.append(MessageHandler(filters.REPLY & (~filters.COMMAND), answer_q_in_group))
     
     application.add_handlers(handlers=handlers)
     
