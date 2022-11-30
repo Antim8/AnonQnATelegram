@@ -1,7 +1,7 @@
 # AnonQnATelegram
 
 ## 1. Overview
-#### This is the final project of Tim Kapferer, Tim Petersen and Jana Bormann for the course "Basic Python" of the University Osnabrück. <br>
+#### This is a project by Tim Kapferer, Tim Petersen and Jana Bormann. <br>
 Our goal is to create a bot for Telegram that enables the users to ask and answer questions anonymously in a group chat.
 The bot plays the role of an interface between a group member wanting to stay anonymous and the group itself.
 To prevent the misuse of anonymity a reporting system is at hand with a banning mechanism that scales with the size of the group.
